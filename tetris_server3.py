@@ -9,7 +9,7 @@ import sys
 import random
 import const
 from twisted.internet.protocol import Protocol
-from twisted.internet.protocol import Factory
+from twisted.internet.protocol import ClientFactory
 from twisted.internet import reactor
 from twisted.internet.defer import DeferredQueue
 
@@ -683,6 +683,8 @@ class PacketConnection(Protocol):
         #main(self.connection)
         self.m = task.LoopingCall(main, (self))
         self.m.start(1/60)
+        
+        self.StartForwarding()
     def dataReceived(self, data):
         # assume data will always come in packets of opp_score, opp_level, opp_lines, opp_alive
         self.OPP_score = data[0]
@@ -690,20 +692,21 @@ class PacketConnection(Protocol):
         self.OPP_lines = data[2]
         self.OPP_alive = data[3]
 
-        print(data[0])
-        print(data[1])
-        # Forward my data
-        d = []
-        d[0] = self.game_state.score
-        d[1] = self.game_state.level
-        d[2] = self.game_state.lines
-        d[3] = self.game_state.alive
+        self.StartForwarding()
 
-        self.transport.write(d)
+    def StartForwarding(self):
+        # Forward my data
+        #d = []
+        #d[0] = self.game_state.score
+        #d[1] = self.game_state.level
+        #d[2] = self.game_state.lines
+        #d[3] = self.game_state.alive
+
+        self.transport.write(self.game_state.level)
     #if connection != True:
 	#	connection = True
 	#	return
-class PacketConnectionFactory(Factory):
+class PacketConnectionFactory(ClientFactory):
     def __init__(self):
     	self.myconn = PacketConnection()
     def buildProtocol(self, addr):
@@ -714,8 +717,5 @@ if __name__=='__main__':
     #m = task.LoopingCall(main, (connection))
     #m.start(1/60)
     
-    reactor.listenTCP(PORT, PacketConnectionFactory())
-    reactor.run()
-    
-    
-    
+    reactor.connectTCP("localhost", PORT, PacketConnectionFactory())
+    reactor.run()    

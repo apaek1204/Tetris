@@ -1,19 +1,16 @@
-#!/usr/bin/python3
+#!/usr/bin/python2.7
 '''#!/usr/bin/env/python'''
-
-PORT = 41016
 
 import pygame
 import os
-import sys
 import random
 import const
-from twisted.internet.protocol import Protocol
+
 from twisted.internet.protocol import Factory
+from twisted.internet.protocol import Protocol
 from twisted.internet import reactor
 from twisted.internet.defer import DeferredQueue
-
-from twisted.internet import task
+   
 
 class GameState(object):
     #stores games state
@@ -563,159 +560,126 @@ def game_over_win():
         pygame.display.flip()
         surface.blit(smallfont.render('You won! :D', True, (255,255,255)), (150, 300))
             
-def rage_quit(PacketConnectionObject):
+def rage_quit():
     pygame.init()
     surface = pygame.display.set_mode((400,500))
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                print("sad for c")
                 running=False
-                PacketConnectionObject.m.stop()
+
         font = pygame.font.SysFont('Arial', 30)
         smallfont = pygame.font.SysFont('Arial', 20)
-        surface.blit(font.render('GAME OVER!', True, (255,255,255)), (100,150)) 
-        surface.blit(smallfont.render('Why did you quit? :C', True, (255,255,255)), (100, 300))
+        surface.blit(font.render('GAME OVER!', True, (255,255,255)), (100,150))
         pygame.display.flip()
+        surface.blit(smallfont.render('Why did you quit? :C', True, (255,255,255)), (100, 300))
+            
 
-def run_game(PacketConnectionObject):
+def run_game():
     pygame.init()
     surface = pygame.display.set_mode((400,500))
     running = True
     clock = pygame.time.Clock()
-    #game_state = PacketConnectionObject.game_state
+    game_state = GameState()
     game_over = False
     downclock = 0
     game_win = False
-    #while running and not game_over and not game_win:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running=False
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_c and PacketConnectionObject.game_state.curr_piece:
-                PacketConnectionObject.game_state.rotate_cw()
-            if event.key == pygame.K_q: 
-                running = False
-            if event.key == pygame.K_SPACE:
-                #Needs to set packet to send new row
-                None
-    if PacketConnectionObject.game_state.curr_piece == None:
-       PacketConnectionObject.game_state.make_piece()
-    #need to check packet if a row was sent, then call game.state.create_incomplete_row() 
-    PacketConnectionObject.game_state.checkRow()
-    pressed = pygame.key.get_pressed()
-    if pressed[pygame.K_RIGHT]: PacketConnectionObject.game_state.moveRight();
-    if pressed[pygame.K_LEFT]: PacketConnectionObject.game_state.moveLeft();
-    if pressed[pygame.K_DOWN]: PacketConnectionObject.game_state.moveDown();
-    
-    if(downclock%10==0): 
-        if PacketConnectionObject.game_state.curr_piece:
-           PacketConnectionObject.game_state.moveDown()
-    
-    game_over= PacketConnectionObject.game_state.check_game_over()
-# score level, lines, alive
+    while running and not game_over and not game_win:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running=False
+            if event.type == pygame.KEYUP:
+                if event.key == pygame.K_c and game_state.curr_piece:
+                    game_state.rotate_cw()
+                if event.key == pygame.K_q: 
+                    running = False
+                if event.key == pygame.K_SPACE:
+                    #Needs to set packet to send new row
+                    None
+        if game_state.curr_piece == None:
+            game_state.make_piece()
+        #need to check packet if a row was sent, then call game.state.create_incomplete_row() 
+        game_state.checkRow()
+        pressed = pygame.key.get_pressed()
+        if pressed[pygame.K_RIGHT]: game_state.moveRight();
+        if pressed[pygame.K_LEFT]: game_state.moveLeft();
+        if pressed[pygame.K_DOWN]: game_state.moveDown();
+        
+        if(downclock%10==0): 
+            if game_state.curr_piece:
+                game_state.moveDown()
+        
+        game_over= game_state.check_game_over()
 
-    #OPP_score = 0
-    #OPP_level = 0
-    #OPP_lines = 0
-    #OPP_alive = True
-    game_win = PacketConnectionObject.game_state.check_win_condition(PacketConnectionObject.OPP_score, PacketConnectionObject.OPP_alive)
-    draw_screen(surface, PacketConnectionObject.game_state,PacketConnectionObject.OPP_score, PacketConnectionObject.OPP_level,PacketConnectionObject.OPP_lines)
-    downclock+=1
-    #clock.tick(50*PacketConnectionObject.game_state.level)
+        OPP_score = 0
+        OPP_level = 0
+        OPP_lines = 0
+        OPP_alive = True
+        game_win = game_state.check_win_condition(OPP_score, OPP_alive)
+        draw_screen(surface, game_state,OPP_score, OPP_level,OPP_lines)
+        downclock+=1
+        clock.tick(50*game_state.level)
     if game_win:
-        PacketConnectionObject.m.stop()
         game_over_win()
     elif game_over:
-        PacketConnectionObject.m.stop()
         game_over_lost()
     elif not running:
-        PacketConnectionObject.m.stop()
-        PacketConnectionObject.m = task.LoopingCall(rage_quit, (PacketConnectionObject))
-        PacketConnectionObject.m.start(1/60)
-        #rage_quit()
+        rage_quit()
 
-def main(PacketConnectionObject): 
+'''Packet Connection class
+	Allows program to send and receive data packets
+'''
+class PacketConnection(Protocol):
+	def __init__(self):
+		
+	def connectionMade(self):
+		self.connection = True
+
+class PacketConnectionFactory(Factory):
+	def __init__(self):
+		self.myconn = PacketConnection()
+	def buildProtocol(self, addr):
+		return self.myconn
+	
+
+def main():
     pygame.init()
     surface = pygame.display.set_mode((400,500))
     running = True
-    #connection = False
+
+    # Create Packet Connection Factory object in prepartion of getting and receiving packets
+    #myPacketConnectionFactory = PacketConnectionFactory()
+    # Initialize connection to be equal to False, so that game doesn't start until other player is ready
+    connection = True
+    
     game = False
-    #while running:
-    for event in pygame.event.get():
-         if event.type == pygame.QUIT:
-             running=False
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running=False
+	
+        font = pygame.font.SysFont('Arial', 30)
+        smallfont = pygame.font.SysFont('Arial', 20)
+        surface.blit(font.render('Tetris', True, (255,255,255)), (165,150))
+        pygame.display.flip()
+	# Reset connection to depend on whether a connection has been made, according to the Packet connection factory
+	connection = myPacketConnectionFactory.myconn.connection
 
-    font = pygame.font.SysFont('Arial', 30)
-    smallfont = pygame.font.SysFont('Arial', 20)
-    surface.blit(font.render('Tetris', True, (255,255,255)), (165,150))
-    if PacketConnectionObject.connection:
-        surface.blit(smallfont.render('Connected! Press enter to continue', True, (255,255,255)), (50, 300))
-        pressed = pygame.key.get_pressed()
-        if pressed[pygame.K_RETURN]:
-            running = False
-            game = True
-    else:
-        surface.blit(smallfont.render('Connecting... Please wait', True, (255,255,255)), (100,300))
-    pygame.display.flip()
+        if connection:
+            surface.blit(smallfont.render('Connected! Press enter to continue', True, (255,255,255)), (50, 300))
+            pressed = pygame.key.get_pressed()
+            if pressed[pygame.K_RETURN]:
+                running = False
+                game = True
+	else:
+            surface.blit(smallfont.render('Connecting... Please wait', True, (255,255,255)), (100,300))
+    	# Begin checking for connection
+    	#reactor.listenTCP(40016, myPacketConnectionFactory)
+    	#reactor.run(installSignalHandlers=False) # run reactor in non-main thread, found on http://stackoverflow.com/questions/12917980/non-blocking-server-in-twisted?rq=1
+
     if game:
-        PacketConnectionObject.m.stop()
-        PacketConnectionObject.m = task.LoopingCall(run_game, (PacketConnectionObject))
-        PacketConnectionObject.m.start(1/60)
-
-
-class PacketConnection(Protocol):
-    def __init__(self):
-        self.connection=False
-        self.m = task.LoopingCall(main, (self))
-        self.m.start(1/60)
-        self.game_state=GameState()
-	    #run_game()
-        self.OPP_score = 0
-        self.OPP_level = 0
-        self.OPP_lines = 0
-        self.OPP_alive = True
-    def connectionMade(self):
-        print("Connection Made")
-        self.connection=True
-        self.m.stop()
-        #main(self.connection)
-        self.m = task.LoopingCall(main, (self))
-        self.m.start(1/60)
-    def dataReceived(self, data):
-        # assume data will always come in packets of opp_score, opp_level, opp_lines, opp_alive
-        self.OPP_score = data[0]
-        self.OPP_level = data[1]
-        self.OPP_lines = data[2]
-        self.OPP_alive = data[3]
-
-        print(data[0])
-        print(data[1])
-        # Forward my data
-        d = []
-        d[0] = self.game_state.score
-        d[1] = self.game_state.level
-        d[2] = self.game_state.lines
-        d[3] = self.game_state.alive
-
-        self.transport.write(d)
-    #if connection != True:
-	#	connection = True
-	#	return
-class PacketConnectionFactory(Factory):
-    def __init__(self):
-    	self.myconn = PacketConnection()
-    def buildProtocol(self, addr):
-    	return self.myconn
-
+        run_game()
 if __name__=='__main__':
-    #connection = False
-    #m = task.LoopingCall(main, (connection))
-    #m.start(1/60)
-    
-    reactor.listenTCP(PORT, PacketConnectionFactory())
-    reactor.run()
-    
-    
+    main()
     
